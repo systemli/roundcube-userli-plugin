@@ -1,0 +1,42 @@
+{
+  "name": "systemli/userli_aliases",
+  "type": "roundcube-plugin",
+  "description": "Roundcube plugin to synchronize user identities from userli aliases API",
+  "keywords": [
+    "roundcube",
+    "plugin",
+    "userli",
+    "aliases"
+  ],
+  "homepage": "https://github.com/systemli/roundcube-userli-plugin",
+  "license": "GPL-3.0+",
+  "authors": [
+    {
+      "name": "systemli",
+      "homepage": "https://www.systemli.org"
+    }
+  ],
+  "repositories": [
+    {
+      "type": "composer",
+      "url": "https://plugins.roundcube.net"
+    }
+  ],
+  "require": {
+    "php": ">=7.4.0",
+    "roundcube/plugin-installer": ">=0.1.3"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.0"
+  },
+  "extra": {
+    "roundcube": {
+      "min-version": "1.4.0"
+    }
+  },
+  "config": {
+    "allow-plugins": {
+      "roundcube/plugin-installer": true
+    }
+  }
+}

@@ -1,0 +1,13 @@
+<?php
+
+/**
+ * Configuration for userli_aliases plugin
+ *
+ * Copy this file to config.inc.php and adjust the settings
+ */
+
+// API endpoint for userli aliases
+$config['userli_aliases_api'] = 'https://your-userli-instance.tld/api/aliases';
+
+// SSL certificate verification (recommended: true)
+$config['userli_aliases_ssl_verify'] = true;
