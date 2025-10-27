@@ -8,6 +8,9 @@
  * @version 0.1
  * @author systemli
  */
+
+declare(strict_types=1);
+
 class userli_aliases extends rcube_plugin
 {
     public $task = "login";
@@ -43,17 +46,24 @@ class userli_aliases extends rcube_plugin
         // Get list of userli aliases
         $client = $rcmail->get_http_client();
         try {
-            $response = $client->get(
-                $rcmail->config->get("userli_aliases_api"),
+            $response = $client->request(
+                'POST',
+                $rcmail->config->get("userli_aliases_url"),
                 [
                     "verify" => $rcmail->config->get(
                         "userli_aliases_ssl_verify",
                     ),
-                    "auth" => [$rcmail->user->get_username(), $this->pass],
+                    "json" => [
+                        "email" => $rcmail->user->get_username(),
+                        "password" => $this->pass,
+                    ],
+                     "headers" => [
+                         'X-API-Token' => $rcmail->config->get("userli_aliases_token")
+                     ],
                 ],
             );
             $response_code = $response->getStatusCode();
-            $result = $response->getBody();
+            $result = (string) $response->getBody();
         } catch (Exception $e) {
             rcube::raise_error(
                 [
@@ -103,8 +113,7 @@ class userli_aliases extends rcube_plugin
                     "code" => 600,
                     "file" => __FILE__,
                     "line" => __LINE__,
-                    "message" =>
-                        "Userli aliases plugin: Unexpected aliases format from userli API",
+                    "message" => "Userli aliases plugin: Unexpected aliases format from userli API",
                 ],
                 true,
                 false,
