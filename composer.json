@@ -1,12 +1,11 @@
 {
-  "name": "systemli/userli_aliases",
+  "name": "systemli/userli",
   "type": "roundcube-plugin",
-  "description": "Roundcube plugin to synchronize user identities from userli aliases API",
+  "description": "Roundcube plugin for Userli",
   "keywords": [
     "roundcube",
     "plugin",
-    "userli",
-    "aliases"
+    "userli"
   ],
   "homepage": "https://github.com/systemli/roundcube-userli-plugin",
   "license": "GPL-3.0+",

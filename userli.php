@@ -11,7 +11,7 @@
 
 declare(strict_types=1);
 
-class userli_aliases extends rcube_plugin
+class userli extends rcube_plugin
 {
     public $task = "login";
     private string $pass = "";
@@ -48,17 +48,17 @@ class userli_aliases extends rcube_plugin
         try {
             $response = $client->request(
                 'POST',
-                $rcmail->config->get("userli_aliases_url"),
+                $rcmail->config->get("userli_url") . '/api/roundcube/aliases',
                 [
                     "verify" => $rcmail->config->get(
-                        "userli_aliases_ssl_verify",
+                        "userli_ssl_verify",
                     ),
                     "json" => [
                         "email" => $rcmail->user->get_username(),
                         "password" => $this->pass,
                     ],
                      "headers" => [
-                         'X-API-Token' => $rcmail->config->get("userli_aliases_token")
+                         'X-API-Token' => $rcmail->config->get("userli_token")
                      ],
                 ],
             );
@@ -94,10 +94,10 @@ class userli_aliases extends rcube_plugin
             return;
         }
 
-        $userli_aliases = [];
+        $aliases = [];
         $aliases_json_error = false;
         try {
-            $userli_aliases = json_decode(
+            $aliases = json_decode(
                 $result,
                 false,
                 512,
@@ -107,7 +107,7 @@ class userli_aliases extends rcube_plugin
             $aliases_json_error = true;
         }
 
-        if ($aliases_json_error || !is_array($userli_aliases)) {
+        if ($aliases_json_error || !is_array($aliases)) {
             rcube::raise_error(
                 [
                     "code" => 600,
@@ -129,7 +129,7 @@ class userli_aliases extends rcube_plugin
             if ($identity["email"] === $rcmail->user->get_username()) {
                 continue;
             }
-            if (!in_array($identity["email"], $userli_aliases, true)) {
+            if (!in_array($identity["email"], $aliases, true)) {
                 $rcmail->user->delete_identity($identity["identity_id"]);
                 continue;
             }
@@ -137,7 +137,7 @@ class userli_aliases extends rcube_plugin
         }
 
         // Add new identities
-        foreach ($userli_aliases as $alias) {
+        foreach ($aliases as $alias) {
             if (in_array($alias, $existing_aliases, true)) {
                 continue;
             }

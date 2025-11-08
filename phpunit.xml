@@ -11,7 +11,7 @@
     </testsuites>
     <coverage processUncoveredFiles="true">
         <include>
-            <file>userli_aliases.php</file>
+            <file>userli.php</file>
         </include>
     </coverage>
 </phpunit>
