@@ -7,10 +7,10 @@
  */
 
 // API endpoint for userli aliases
-$config['userli_url'] = 'https://example.org';
+$config['userli_url'] = 'http://userli';
 
 // API token for userli aliases
-$config['userli_token'] = '';
+$config['userli_token'] = '3ea02d4e9490e2a4d065ede69d6741a6';
 
 // SSL certificate verification (recommended: true)
-$config['userli_ssl_verify'] = true;
+$config['userli_ssl_verify'] = false;
