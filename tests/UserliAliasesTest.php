@@ -1,12 +1,12 @@
 <?php
 
 /**
- * Unit tests for userli_aliases plugin
+ * Unit tests for userli plugin
  */
 
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../userli_aliases.php';
+require_once __DIR__ . '/../userli.php';
 
 class UserliAliasesTest extends TestCase
 {
@@ -17,7 +17,7 @@ class UserliAliasesTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->plugin = new userli_aliases();
+        $this->plugin = new userli();
         $this->rcmail = rcmail::get_instance();
         
         // Create mock user using getMockBuilder
@@ -60,9 +60,9 @@ class UserliAliasesTest extends TestCase
         // Mock configuration
         $this->mockConfig->method('get')->willReturnCallback(function ($key) {
             $config = [
-                'userli_aliases_url' => 'https://api.example.org/aliases',
-                'userli_aliases_ssl_verify' => true,
-                'userli_aliases_token' => 'test-token',
+                'userli_url' => 'https://api.example.org',
+                'userli_ssl_verify' => true,
+                'userli_token' => 'test-token',
             ];
             return $config[$key] ?? null;
         });
@@ -109,9 +109,9 @@ class UserliAliasesTest extends TestCase
         // Mock configuration
         $this->mockConfig->method('get')->willReturnCallback(function ($key) {
             $config = [
-                'userli_aliases_url' => 'https://api.example.org/aliases',
-                'userli_aliases_ssl_verify' => true,
-                'userli_aliases_token' => 'test-token',
+                'userli_url' => 'https://api.example.org',
+                'userli_ssl_verify' => true,
+                'userli_token' => 'test-token',
             ];
             return $config[$key] ?? null;
         });
@@ -143,9 +143,9 @@ class UserliAliasesTest extends TestCase
         // Mock configuration
         $this->mockConfig->method('get')->willReturnCallback(function ($key) {
             $config = [
-                'userli_aliases_url' => 'https://api.example.org/aliases',
-                'userli_aliases_ssl_verify' => true,
-                'userli_aliases_token' => 'test-token',
+                'userli_url' => 'https://api.example.org',
+                'userli_ssl_verify' => true,
+                'userli_token' => 'test-token',
             ];
             return $config[$key] ?? null;
         });
@@ -176,9 +176,9 @@ class UserliAliasesTest extends TestCase
         // Mock configuration
         $this->mockConfig->method('get')->willReturnCallback(function ($key) {
             $config = [
-                'userli_aliases_url' => 'https://api.example.org/aliases',
-                'userli_aliases_ssl_verify' => true,
-                'userli_aliases_token' => 'test-token',
+                'userli_url' => 'https://api.example.org',
+                'userli_ssl_verify' => true,
+                'userli_token' => 'test-token',
             ];
             return $config[$key] ?? null;
         });
@@ -202,9 +202,9 @@ class UserliAliasesTest extends TestCase
         // Mock configuration
         $this->mockConfig->method('get')->willReturnCallback(function ($key) {
             $config = [
-                'userli_aliases_url' => 'https://api.example.org/aliases',
-                'userli_aliases_ssl_verify' => true,
-                'userli_aliases_token' => 'test-token',
+                'userli_url' => 'https://api.example.org',
+                'userli_ssl_verify' => true,
+                'userli_token' => 'test-token',
             ];
             return $config[$key] ?? null;
         });
@@ -250,9 +250,9 @@ class UserliAliasesTest extends TestCase
         // Mock configuration
         $this->mockConfig->method('get')->willReturnCallback(function ($key) {
             $config = [
-                'userli_aliases_url' => 'https://api.example.org/aliases',
-                'userli_aliases_ssl_verify' => true,
-                'userli_aliases_token' => 'test-token',
+                'userli_url' => 'https://api.example.org',
+                'userli_ssl_verify' => true,
+                'userli_token' => 'test-token',
             ];
             return $config[$key] ?? null;
         });

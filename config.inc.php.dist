@@ -1,16 +1,16 @@
 <?php
 
 /**
- * Configuration for userli_aliases plugin
+ * Configuration for userli plugin
  *
  * Copy this file to config.inc.php and adjust the settings
  */
 
 // API endpoint for userli aliases
-$config['userli_aliases_url'] = 'https://example.org/api/roundcube/aliases';
+$config['userli_url'] = 'https://example.org';
 
 // API token for userli aliases
-$config['userli_aliases_token'] = '';
+$config['userli_token'] = '';
 
 // SSL certificate verification (recommended: true)
-$config['userli_aliases_ssl_verify'] = true;
+$config['userli_ssl_verify'] = true;

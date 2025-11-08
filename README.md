@@ -1,4 +1,4 @@
-# Roundcube Userli Aliases
+# Roundcube Userli Plugin
 
 A Roundcube plugin that automatically synchronizes user identities from a userli aliases API at login.
 
@@ -13,9 +13,9 @@ A Roundcube plugin that automatically synchronizes user identities from a userli
 Edit `config.inc.php` with your userli API settings:
 
 ```php
-$config['userli_aliases_url'] = 'https://your-api.example.org/api/roundcube/aliases';
-$config['userli_aliases_token'] = 'your-api-token';
-$config['userli_aliases_ssl_verify'] = true;
+$config['userli_url'] = 'https://your-api.example.org';
+$config['userli_token'] = 'your-api-token';
+$config['userli_ssl_verify'] = true;
 ```
 
 ## Testing

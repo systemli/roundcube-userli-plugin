@@ -1,7 +1,7 @@
 <?php
 
 /**
- * PHPUnit bootstrap file for userli_aliases plugin tests
+ * PHPUnit bootstrap file for userli plugin tests
  */
 
 require_once __DIR__ . '/../vendor/autoload.php';
