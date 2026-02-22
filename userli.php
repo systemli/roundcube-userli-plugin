@@ -18,6 +18,8 @@ class userli extends rcube_plugin
 
     public function init(): void
     {
+        // Alter loginform content
+        $this->add_hook("loginform_content", [$this, "modify_login_form"]);
         // Before the user login on the IMAP server is performed.
         $this->add_hook("authenticate", [$this, "authenticate_store_pass"]);
         // Triggered after a user successfully logged in
@@ -25,6 +27,21 @@ class userli extends rcube_plugin
             $this,
             "login_after_update_identities",
         ]);
+    }
+
+    /**
+     * Store user password during authentication
+     */
+    public function modify_login_form($args): void
+    {
+        $this->api->output->add_script(
+            "document.addEventListener('DOMContentLoaded', function() {
+                var usernameField = document.getElementById('rcmloginuser');
+                if (usernameField) {
+                    usernameField.placeholder = 'E-mail';
+                }
+            });"
+        );
     }
 
     /**
