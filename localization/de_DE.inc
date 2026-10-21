@@ -2,6 +2,7 @@
 
 $labels = [];
 $labels['twofactor_code'] = 'Zwei-Faktor-Code';
+$labels['use_another_account'] = 'Anderes Konto verwenden';
 
 $messages = [];
 $messages['twofactor_required'] = 'Gib den Code aus deiner Authenticator-App oder einen Backup-Code ein.';

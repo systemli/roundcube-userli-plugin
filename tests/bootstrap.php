@@ -134,7 +134,7 @@ if (!class_exists('rcube_utils')) {
 
         public static function get_input_string($name, $source)
         {
-            return $_POST[$name] ?? '';
+            return ($source === self::INPUT_GET ? $_GET[$name] ?? '' : $_POST[$name] ?? '');
         }
     }
 }
@@ -145,6 +145,11 @@ if (!class_exists('html')) {
         public static function label($for, $text)
         {
             return '<label for="' . $for . '">' . $text . '</label>';
+        }
+
+        public static function a($attrib, $content)
+        {
+            return '<a href="' . htmlspecialchars($attrib['href']) . '">' . $content . '</a>';
         }
 
         public static function quote($str)

@@ -54,6 +54,7 @@ class UserliLoginTest extends TestCase
     {
         $_SESSION = [];
         $_POST = [];
+        $_GET = [];
 
         $this->plugin = new userli();
         $this->rcmail = rcmail::get_instance();
@@ -194,6 +195,49 @@ class UserliLoginTest extends TestCase
 
         $this->assertSame('userli.twofactor_invalid', $args['error']);
         $this->assertSame('totp@example.org', $_SESSION['userli_2fa']['user']);
+    }
+
+    public function testCodeFormOffersAnotherAccount(): void
+    {
+        $this->client(new FakeResponse(401, ['message' => 'twofactor required']));
+
+        $this->login('totp@example.org', 'password');
+        $form = $this->plugin->modify_login_form(['hidden' => [], 'inputs' => [], 'buttons' => []]);
+
+        $this->assertStringContainsString('_userli_cancel=1', $form['buttons']['userli_cancel']['content']);
+    }
+
+    public function testCancelDropsPendingLogin(): void
+    {
+        $_SESSION['userli_2fa'] = ['user' => 'totp@example.org', 'pass' => $this->rcmail->encrypt('password'), 'time' => time()];
+        $_GET['_userli_cancel'] = '1';
+
+        $this->plugin->startup(['task' => 'login', 'action' => '']);
+        $form = $this->plugin->modify_login_form(['hidden' => [], 'inputs' => ['password' => []], 'buttons' => []]);
+
+        $this->assertArrayHasKey('password', $form['inputs']);
+        $this->assertArrayNotHasKey('userli_2fa', $_SESSION);
+    }
+
+    public function testCodeStepIsNotAFailedLogin(): void
+    {
+        $this->client(new FakeResponse(401, ['message' => 'twofactor required']));
+
+        $this->login('totp@example.org', 'password');
+
+        $this->assertSame(200, $this->plugin->unauthenticated(['task' => 'login', 'http_code' => 401])['http_code']);
+    }
+
+    public function testWrongCodeStaysAFailedLogin(): void
+    {
+        $_SESSION['userli_2fa'] = ['user' => 'totp@example.org', 'pass' => $this->rcmail->encrypt('password'), 'time' => time()];
+        $_POST['_userli_code'] = '000000';
+        $this->client(new FakeResponse(401, ['message' => 'authentication failed']));
+
+        $this->plugin->startup(['task' => 'login', 'action' => 'login']);
+        $this->login('totp@example.org', '');
+
+        $this->assertSame(401, $this->plugin->unauthenticated(['task' => 'login', 'http_code' => 401])['http_code']);
     }
 
     public function testInvalidRequestIsNotSentToUserli(): void

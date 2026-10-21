@@ -21,6 +21,7 @@ class userli extends rcube_plugin
     private ?array $pending = null;
     private ?int $expires = null;
     private ?string $credential = null;
+    private bool $twofactor_required = false;
 
     public function init(): void
     {
@@ -40,6 +41,8 @@ class userli extends rcube_plugin
         $this->add_hook("login_failed", [$this, "login_failed"]);
         // Logout, session timeout or a new login, after Roundcube's own logout actions
         $this->add_hook("session_destroy", [$this, "session_destroy"]);
+        // Before the login page is sent, decides between HTTP 401 and 200
+        $this->add_hook("unauthenticated", [$this, "unauthenticated"]);
     }
 
     public function startup(array $args): array
@@ -49,7 +52,9 @@ class userli extends rcube_plugin
         if ($args["task"] === "login") {
             $pending = $_SESSION["userli_2fa"] ?? null;
             $rcmail->session->remove("userli_2fa");
-            $this->pending = is_array($pending) && $pending["time"] + self::PENDING_LIFETIME > time() ? $pending : null;
+            $valid = is_array($pending) && $pending["time"] + self::PENDING_LIFETIME > time();
+            $cancelled = rcube_utils::get_input_string("_userli_cancel", rcube_utils::INPUT_GET) !== "";
+            $this->pending = $valid && !$cancelled ? $pending : null;
         }
 
         // Dovecot rejects the webmail credential after it expired, so end the session with it
@@ -96,6 +101,10 @@ class userli extends rcube_plugin
                 "title" => html::label("rcmloginuserlicode", html::quote($this->gettext("twofactor_code"))),
                 "content" => $code->show(),
             ],
+        ];
+        $args["buttons"]["userli_cancel"] = [
+            "outterclass" => "formbuttons",
+            "content" => html::a(["href" => "./?_task=login&_userli_cancel=1"], html::quote($this->gettext("use_another_account"))),
         ];
 
         return $args;
@@ -178,12 +187,25 @@ class userli extends rcube_plugin
                 "time" => time(),
             ];
             $args["error"] = "userli.twofactor_required";
+            $this->twofactor_required = true;
         } elseif ($status === 429) {
             $args["error"] = "userli.too_many_attempts";
         } elseif ($status === 403 && $message === "user password change required") {
             $args["error"] = "userli.password_change_required";
         } elseif ($status !== 401 && $status !== 403) {
             $args["error"] = "userli.login_unavailable";
+        }
+
+        return $args;
+    }
+
+    /**
+     * Answer the code step with 200: the password was right, so brute-force detection must not count it
+     */
+    public function unauthenticated(array $args): array
+    {
+        if ($this->twofactor_required) {
+            $args["http_code"] = 200;
         }
 
         return $args;
