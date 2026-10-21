@@ -45,16 +45,6 @@ class UserliAliasesTest extends TestCase
         $this->assertArrayHasKey('login_after', $hooks);
     }
 
-    public function testAuthenticateStoresPassword(): void
-    {
-        $args = ['pass' => 'test_password_123'];
-        
-        $this->plugin->authenticate_store_pass($args);
-        
-        // We can't directly test the private property, but we can verify no errors occur
-        $this->assertTrue(true);
-    }
-
     public function testLoginAfterWithSuccessfulApiResponse(): void
     {
         // Mock configuration
