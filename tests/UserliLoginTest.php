@@ -57,7 +57,6 @@ class UserliLoginTest extends TestCase
 
         $this->plugin = new userli();
         $this->rcmail = rcmail::get_instance();
-        $this->rcmail->requestValid = true;
         $this->rcmail->sessionKilled = false;
 
         $config = $this->getMockBuilder(stdClass::class)->addMethods(['get'])->getMock();
@@ -78,7 +77,7 @@ class UserliLoginTest extends TestCase
 
     private function login(string $user, string $pass): array
     {
-        return $this->plugin->authenticate(['user' => $user, 'pass' => $pass, 'abort' => false, 'error' => null]);
+        return $this->plugin->authenticate(['user' => $user, 'pass' => $pass, 'valid' => true, 'abort' => false, 'error' => null]);
     }
 
     public function testInitRegistersLoginHooks(): void
@@ -87,6 +86,8 @@ class UserliLoginTest extends TestCase
 
         $this->assertArrayHasKey('startup', $this->plugin->getHooks());
         $this->assertArrayHasKey('loginform_content', $this->plugin->getHooks());
+        $this->assertArrayHasKey('login_failed', $this->plugin->getHooks());
+        $this->assertArrayHasKey('session_destroy', $this->plugin->getHooks());
     }
 
     public function testPasswordIsExchangedForWebmailCredential(): void
@@ -195,49 +196,123 @@ class UserliLoginTest extends TestCase
         $this->assertSame('totp@example.org', $_SESSION['userli_2fa']['user']);
     }
 
-    public function testExpiredPendingLoginIsIgnored(): void
+    public function testInvalidRequestIsNotSentToUserli(): void
+    {
+        $client = $this->client();
+
+        $args = $this->plugin->authenticate(['user' => 'user@example.org', 'pass' => 'password', 'valid' => false, 'abort' => false, 'error' => null]);
+
+        $this->assertSame([], $client->calls);
+        $this->assertSame('password', $args['pass']);
+    }
+
+    public function testExpiredPendingLoginEndsCodeStep(): void
     {
         $_SESSION['userli_2fa'] = ['user' => 'totp@example.org', 'pass' => $this->rcmail->encrypt('password'), 'time' => time() - 301];
         $_POST['_userli_code'] = '123456';
-        $client = $this->client(new FakeResponse(401, ['message' => 'authentication failed']));
+        $client = $this->client();
 
         $this->plugin->startup(['task' => 'login', 'action' => 'login']);
         $args = $this->login('totp@example.org', '');
+        $form = $this->plugin->modify_login_form(['hidden' => [], 'inputs' => ['password' => []], 'buttons' => []]);
 
+        $this->assertSame([], $client->calls);
         $this->assertTrue($args['abort']);
-        $this->assertSame(['email' => 'totp@example.org', 'password' => '', 'code' => ''], $client->calls[0]['json']);
+        $this->assertSame('userli.twofactor_expired', $args['error']);
+        $this->assertArrayHasKey('password', $form['inputs']);
+        $this->assertArrayNotHasKey('userli_2fa', $_SESSION);
     }
 
-    public function testPendingLoginOfAnotherUserIsIgnored(): void
+    public function testPendingLoginOfAnotherUserIsNotUsed(): void
     {
         $_SESSION['userli_2fa'] = ['user' => 'totp@example.org', 'pass' => $this->rcmail->encrypt('password'), 'time' => time()];
         $_POST['_userli_code'] = '123456';
-        $client = $this->client(new FakeResponse(401, ['message' => 'authentication failed']));
+        $client = $this->client();
 
         $this->plugin->startup(['task' => 'login', 'action' => 'login']);
-        $this->login('other@example.org', 'guess');
+        $args = $this->login('other@example.org', '');
 
-        $this->assertSame(['email' => 'other@example.org', 'password' => 'guess', 'code' => ''], $client->calls[0]['json']);
+        $this->assertSame([], $client->calls);
+        $this->assertSame('userli.twofactor_expired', $args['error']);
     }
 
-    public function testLogoutRevokesWebmailCredential(): void
+    public function testTooManyAttempts(): void
+    {
+        $this->client(new FakeResponse(429, ['message' => 'too many attempts']));
+
+        $args = $this->login('user@example.org', 'password');
+
+        $this->assertTrue($args['abort']);
+        $this->assertSame('userli.too_many_attempts', $args['error']);
+    }
+
+    public function testPasswordChangeRequired(): void
+    {
+        $this->client(new FakeResponse(403, ['message' => 'user password change required']));
+
+        $args = $this->login('user@example.org', 'password');
+
+        $this->assertSame('userli.password_change_required', $args['error']);
+    }
+
+    public function testDisabledUserFailsLikeWrongPassword(): void
+    {
+        $this->client(new FakeResponse(403, ['message' => 'user disabled due to spam role']));
+
+        $args = $this->login('spam@example.org', 'password');
+
+        $this->assertTrue($args['abort']);
+        $this->assertNull($args['error']);
+    }
+
+    public function testUnexpectedCredentialFormatAbortsLogin(): void
+    {
+        $this->client(new FakeResponse(200, ['password' => ['not', 'a', 'string'], 'expiresAt' => []]));
+
+        $args = $this->login('user@example.org', 'password');
+
+        $this->assertTrue($args['abort']);
+        $this->assertSame('userli.login_unavailable', $args['error']);
+    }
+
+    public function testFailedImapLoginRevokesCredential(): void
+    {
+        $client = $this->client(new FakeResponse(200, ['password' => 'credential']), new FakeResponse(204));
+
+        $this->login('user@example.org', 'password');
+        $this->plugin->login_failed(['user' => 'user@example.org', 'code' => 1]);
+
+        $this->assertSame('https://users.example.org/api/roundcube/logout', $client->calls[1]['url']);
+        $this->assertSame(['email' => 'user@example.org', 'password' => 'credential'], $client->calls[1]['json']);
+    }
+
+    public function testFailedLoginWithoutCredentialRevokesNothing(): void
+    {
+        $client = $this->client(new FakeResponse(401, ['message' => 'authentication failed']));
+
+        $this->login('user@example.org', 'wrong');
+        $this->plugin->login_failed(['user' => 'user@example.org', 'code' => 1]);
+
+        $this->assertCount(1, $client->calls);
+    }
+
+    public function testSessionDestroyRevokesWebmailCredential(): void
     {
         $_SESSION = ['user_id' => 1, 'username' => 'user@example.org', 'password' => $this->rcmail->encrypt('credential')];
         $client = $this->client(new FakeResponse(204));
 
-        $this->plugin->startup(['task' => 'logout', 'action' => '']);
+        $this->plugin->session_destroy([]);
 
         $this->assertSame('https://users.example.org/api/roundcube/logout', $client->calls[0]['url']);
         $this->assertSame(['email' => 'user@example.org', 'password' => 'credential'], $client->calls[0]['json']);
     }
 
-    public function testLogoutWithoutValidTokenDoesNotRevoke(): void
+    public function testSessionDestroyWithoutLoginRevokesNothing(): void
     {
-        $_SESSION = ['user_id' => 1, 'username' => 'user@example.org', 'password' => $this->rcmail->encrypt('credential')];
-        $this->rcmail->requestValid = false;
+        $_SESSION = ['temp' => true];
         $client = $this->client();
 
-        $this->plugin->startup(['task' => 'logout', 'action' => '']);
+        $this->plugin->session_destroy([]);
 
         $this->assertSame([], $client->calls);
     }

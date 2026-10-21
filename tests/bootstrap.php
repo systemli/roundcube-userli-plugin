@@ -56,9 +56,19 @@ if (!class_exists('rcmail')) {
         private static $instance;
         public $user;
         public $config;
-        public $requestValid = true;
         public $sessionKilled = false;
+        public $session;
         private $httpClient;
+
+        public function __construct()
+        {
+            $this->session = new class {
+                public function remove($var)
+                {
+                    unset($_SESSION[$var]);
+                }
+            };
+        }
 
         public function encrypt($clear)
         {
@@ -68,11 +78,6 @@ if (!class_exists('rcmail')) {
         public function decrypt($cipher)
         {
             return base64_decode(substr($cipher, strlen('encrypted:')));
-        }
-
-        public function check_request($mode)
-        {
-            return $this->requestValid;
         }
 
         public function get_user_name()
@@ -88,7 +93,7 @@ if (!class_exists('rcmail')) {
         public function kill_session()
         {
             $this->sessionKilled = true;
-            $_SESSION = [];
+            $_SESSION = ['language' => 'en_US', 'temp' => true];
         }
 
         public static function get_instance()

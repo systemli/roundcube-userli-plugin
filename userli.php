@@ -20,6 +20,7 @@ class userli extends rcube_plugin
     private string $pass = "";
     private ?array $pending = null;
     private ?int $expires = null;
+    private ?string $credential = null;
 
     public function init(): void
     {
@@ -35,6 +36,10 @@ class userli extends rcube_plugin
             $this,
             "login_after_update_identities",
         ]);
+        // IMAP login failed after userli issued a credential
+        $this->add_hook("login_failed", [$this, "login_failed"]);
+        // Logout, session timeout or a new login, after Roundcube's own logout actions
+        $this->add_hook("session_destroy", [$this, "session_destroy"]);
     }
 
     public function startup(array $args): array
@@ -42,27 +47,13 @@ class userli extends rcube_plugin
         $rcmail = rcmail::get_instance();
 
         if ($args["task"] === "login") {
-            $this->pending = $_SESSION["userli_2fa"] ?? null;
-            unset($_SESSION["userli_2fa"]);
-        }
-
-        if (empty($_SESSION["user_id"])) {
-            return $args;
-        }
-
-        if ($args["task"] === "logout") {
-            if ($rcmail->check_request(rcube_utils::INPUT_GET | rcube_utils::INPUT_POST)) {
-                $this->request_api("logout", [
-                    "email" => $rcmail->get_user_name(),
-                    "password" => $rcmail->get_user_password(),
-                ]);
-            }
-
-            return $args;
+            $pending = $_SESSION["userli_2fa"] ?? null;
+            $rcmail->session->remove("userli_2fa");
+            $this->pending = is_array($pending) && $pending["time"] + self::PENDING_LIFETIME > time() ? $pending : null;
         }
 
         // Dovecot rejects the webmail credential after it expired, so end the session with it
-        if (isset($_SESSION["userli_expires"]) && $_SESSION["userli_expires"] <= time()) {
+        if (!empty($_SESSION["user_id"]) && isset($_SESSION["userli_expires"]) && $_SESSION["userli_expires"] <= time()) {
             $rcmail->kill_session();
         }
 
@@ -96,7 +87,6 @@ class userli extends rcube_plugin
             "id" => "rcmloginuserlicode",
             "required" => "required",
             "autocomplete" => "one-time-code",
-            "inputmode" => "numeric",
             "autofocus" => "autofocus",
         ]);
 
@@ -116,18 +106,26 @@ class userli extends rcube_plugin
      */
     public function authenticate(array $args): array
     {
+        // Roundcube rejects the request anyway (missing CSRF token or session)
+        if (empty($args["valid"])) {
+            return $args;
+        }
+
         $rcmail = rcmail::get_instance();
         $code = trim((string) rcube_utils::get_input_string("_userli_code", rcube_utils::INPUT_POST));
         $pending = $this->pending;
         $this->pending = null;
 
-        if (
-            $code !== "" && $pending !== null && $pending["user"] === $args["user"]
-            && $pending["time"] + self::PENDING_LIFETIME > time()
-        ) {
+        if ($code !== "") {
+            if ($pending === null || $pending["user"] !== $args["user"]) {
+                $args["abort"] = true;
+                $args["error"] = "userli.twofactor_expired";
+
+                return $args;
+            }
+
             $args["pass"] = (string) $rcmail->decrypt($pending["pass"]);
         } else {
-            $code = "";
             $pending = null;
         }
 
@@ -139,35 +137,83 @@ class userli extends rcube_plugin
             "password" => $args["pass"],
             "code" => $code,
         ]);
+        $status = $response["status"] ?? null;
+        $body = $response["body"] ?? [];
 
-        // Userli without webmail login: Dovecot checks the password as before
-        if ($response !== null && $response["status"] === 404) {
+        if ($status === 404) {
+            rcube::raise_error(
+                [
+                    "code" => 600,
+                    "file" => __FILE__,
+                    "line" => __LINE__,
+                    "message" => "Userli plugin: login endpoint not found, logging in without 2FA",
+                ],
+                true,
+                false,
+            );
+
             return $args;
         }
 
-        if ($response !== null && $response["status"] === 200 && !empty($response["body"]["password"])) {
-            $args["pass"] = $response["body"]["password"];
-            $expires = strtotime((string) ($response["body"]["expiresAt"] ?? ""));
+        if ($status === 200 && is_string($body["password"] ?? null) && $body["password"] !== "") {
+            $this->credential = $body["password"];
+            $args["pass"] = $body["password"];
+            $expires = is_string($body["expiresAt"] ?? null) ? strtotime($body["expiresAt"]) : false;
             $this->expires = $expires === false ? null : $expires;
 
             return $args;
         }
 
         $args["abort"] = true;
+        $message = $body["message"] ?? "";
 
-        if ($response === null || $response["status"] !== 401) {
-            $args["error"] = "userli.login_unavailable";
-        } elseif ($pending !== null) {
+        if ($status === 401 && $pending !== null) {
             // Wrong code: let the user try again until the pending login expires
             $this->pending = $pending;
             $args["error"] = "userli.twofactor_invalid";
-        } elseif (($response["body"]["message"] ?? "") === "twofactor required") {
+        } elseif ($status === 401 && $message === "twofactor required") {
             $this->pending = [
                 "user" => $args["user"],
                 "pass" => $rcmail->encrypt($args["pass"]),
                 "time" => time(),
             ];
             $args["error"] = "userli.twofactor_required";
+        } elseif ($status === 429) {
+            $args["error"] = "userli.too_many_attempts";
+        } elseif ($status === 403 && $message === "user password change required") {
+            $args["error"] = "userli.password_change_required";
+        } elseif ($status !== 401 && $status !== 403) {
+            $args["error"] = "userli.login_unavailable";
+        }
+
+        return $args;
+    }
+
+    /**
+     * Revoke a credential that Roundcube could not use
+     */
+    public function login_failed(array $args): array
+    {
+        if ($this->credential !== null) {
+            $this->request_api("logout", ["email" => $args["user"], "password" => $this->credential]);
+            $this->credential = null;
+        }
+
+        return $args;
+    }
+
+    /**
+     * Revoke the webmail credential of the ending session
+     */
+    public function session_destroy(array $args): array
+    {
+        $rcmail = rcmail::get_instance();
+
+        if (!empty($_SESSION["user_id"])) {
+            $this->request_api("logout", [
+                "email" => $rcmail->get_user_name(),
+                "password" => $rcmail->get_user_password(),
+            ]);
         }
 
         return $args;
