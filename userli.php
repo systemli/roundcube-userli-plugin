@@ -93,6 +93,7 @@ class userli extends rcube_plugin
             "required" => "required",
             "autocomplete" => "one-time-code",
             "autofocus" => "autofocus",
+            "data-icon" => "key",
         ]);
 
         $args["hidden"]["user"] = $user->show();
