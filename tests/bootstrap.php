@@ -123,6 +123,10 @@ if (!class_exists('rcube')) {
         {
             // Mock implementation - do nothing in tests
         }
+
+        public static function write_log($name, $line)
+        {
+        }
     }
 }
 

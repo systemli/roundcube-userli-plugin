@@ -150,16 +150,7 @@ class userli extends rcube_plugin
         $body = $response["body"] ?? [];
 
         if ($status === 404) {
-            rcube::raise_error(
-                [
-                    "code" => 600,
-                    "file" => __FILE__,
-                    "line" => __LINE__,
-                    "message" => "Userli plugin: login endpoint not found, logging in without 2FA",
-                ],
-                true,
-                false,
-            );
+            rcube::write_log("userli", "Login endpoint not found, logging in without 2FA");
 
             return $args;
         }
