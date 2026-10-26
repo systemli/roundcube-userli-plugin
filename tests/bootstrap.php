@@ -7,7 +7,7 @@
 require_once __DIR__ . '/../vendor/autoload.php';
 
 // Mock Roundcube classes for testing
-if (!class_exists('rcube_plugin')) {
+if (!class_exists('rcube_plugin', false)) {
     class rcube_plugin
     {
         public $task;
@@ -50,7 +50,7 @@ if (!class_exists('rcube_plugin')) {
     }
 }
 
-if (!class_exists('rcmail')) {
+if (!class_exists('rcmail', false)) {
     class rcmail
     {
         private static $instance;
@@ -116,7 +116,7 @@ if (!class_exists('rcmail')) {
     }
 }
 
-if (!class_exists('rcube')) {
+if (!class_exists('rcube', false)) {
     class rcube
     {
         public static function raise_error($args, $log = false, $fatal = false)
@@ -130,7 +130,7 @@ if (!class_exists('rcube')) {
     }
 }
 
-if (!class_exists('rcube_utils')) {
+if (!class_exists('rcube_utils', false)) {
     class rcube_utils
     {
         public const INPUT_GET = 1;
@@ -143,7 +143,7 @@ if (!class_exists('rcube_utils')) {
     }
 }
 
-if (!class_exists('html')) {
+if (!class_exists('html', false)) {
     class html
     {
         public static function label($for, $text)
