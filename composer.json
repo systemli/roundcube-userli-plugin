@@ -15,12 +15,6 @@
       "homepage": "https://www.systemli.org"
     }
   ],
-  "repositories": [
-    {
-      "type": "composer",
-      "url": "https://plugins.roundcube.net"
-    }
-  ],
   "require": {
     "php": "^8.1",
     "roundcube/plugin-installer": ">=0.1.3"
