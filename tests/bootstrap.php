@@ -12,20 +12,39 @@ if (!class_exists('rcube_plugin', false)) {
     {
         public $task;
         public $api;
+        public $scripts = [];
         private $hooks = [];
 
         public function __construct()
         {
             $this->api = new stdClass();
             $this->api->output = new class {
+                public $env = [];
+                public $labels = [];
+
                 public function add_script($script)
                 {
+                }
+
+                public function set_env($name, $value)
+                {
+                    $this->env[$name] = $value;
+                }
+
+                public function add_label(...$names)
+                {
+                    array_push($this->labels, ...$names);
                 }
             };
         }
 
         protected function add_texts($dir)
         {
+        }
+
+        public function include_script($fn)
+        {
+            $this->scripts[] = $fn;
         }
 
         public function gettext($name)
@@ -154,6 +173,15 @@ if (!class_exists('html', false)) {
         public static function a($attrib, $content)
         {
             return '<a href="' . htmlspecialchars($attrib['href']) . '">' . $content . '</a>';
+        }
+
+        public static function tag($tagname, $attrib = [], $content = '')
+        {
+            $attrs = '';
+            foreach ($attrib as $key => $value) {
+                $attrs .= ' ' . $key . '="' . htmlspecialchars((string) $value) . '"';
+            }
+            return '<' . $tagname . $attrs . '>' . $content . '</' . $tagname . '>';
         }
 
         public static function quote($str)

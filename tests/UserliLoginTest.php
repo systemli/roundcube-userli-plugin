@@ -197,6 +197,93 @@ class UserliLoginTest extends TestCase
         $this->assertSame('totp@example.org', $_SESSION['userli_2fa']['user']);
     }
 
+    public function testCodeFormWithoutSecurityKeysHasNoKeyButton(): void
+    {
+        $this->client(new FakeResponse(401, ['message' => 'twofactor required']));
+
+        $this->login('totp@example.org', 'password');
+        $form = $this->plugin->modify_login_form(['hidden' => [], 'inputs' => [], 'buttons' => []]);
+
+        $this->assertArrayNotHasKey('userli_webauthn', $form['buttons']);
+        $this->assertSame([], $this->plugin->scripts);
+        $this->assertNull($_SESSION['userli_2fa']['webauthn']);
+    }
+
+    public function testTwofactorRequiredWithSecurityKeyOffersKey(): void
+    {
+        $options = ['challenge' => 'Y2hhbGxlbmdl', 'rpId' => 'example.org', 'allowCredentials' => [['type' => 'public-key', 'id' => 'Y3JlZA']]];
+        $this->client(new FakeResponse(401, ['message' => 'twofactor required', 'webauthn' => $options]));
+
+        $args = $this->login('key@example.org', 'password');
+        $form = $this->plugin->modify_login_form(['hidden' => [], 'inputs' => [], 'buttons' => []]);
+
+        $this->assertSame('userli.twofactor_required_webauthn', $args['error']);
+        $this->assertSame(['userli.js'], $this->plugin->scripts);
+        $this->assertSame($options, $this->plugin->api->output->env['userli_webauthn']);
+        $this->assertContains('userli.webauthn_failed', $this->plugin->api->output->labels);
+        $this->assertStringContainsString('name="_userli_webauthn"', $form['hidden']['userli_webauthn']);
+        $this->assertStringContainsString('id="rcmloginuserlikey"', $form['buttons']['userli_webauthn']['content']);
+        $this->assertSame($options, $_SESSION['userli_2fa']['webauthn']);
+    }
+
+    public function testSecurityKeyStepSendsAssertionWithIssuedChallenge(): void
+    {
+        $_SESSION['userli_2fa'] = ['user' => 'key@example.org', 'pass' => $this->rcmail->encrypt('password'), 'time' => time(), 'webauthn' => ['challenge' => 'aXNzdWVk']];
+        $_POST['_userli_webauthn'] = json_encode([
+            'challenge' => 'b3RoZXI',
+            'credentialId' => 'Y3JlZA',
+            'clientDataJSON' => 'Y2xpZW50',
+            'authenticatorData' => 'YXV0aA',
+            'signature' => 'c2ln',
+            'userHandle' => null,
+        ]);
+        $client = $this->client(new FakeResponse(200, ['password' => 'credential']));
+
+        $this->plugin->startup(['task' => 'login', 'action' => 'login']);
+        $args = $this->login('key@example.org', '');
+
+        $this->assertSame('credential', $args['pass']);
+        $this->assertSame([
+            'email' => 'key@example.org',
+            'password' => 'password',
+            'code' => '',
+            'webauthn' => [
+                'credentialId' => 'Y3JlZA',
+                'clientDataJSON' => 'Y2xpZW50',
+                'authenticatorData' => 'YXV0aA',
+                'signature' => 'c2ln',
+                'challenge' => 'aXNzdWVk',
+            ],
+        ], $client->calls[0]['json']);
+    }
+
+    public function testRejectedSecurityKeyKeepsStepWithNewChallenge(): void
+    {
+        $_SESSION['userli_2fa'] = ['user' => 'key@example.org', 'pass' => $this->rcmail->encrypt('password'), 'time' => time(), 'webauthn' => ['challenge' => 'b2xk']];
+        $_POST['_userli_webauthn'] = json_encode(['credentialId' => 'Y3JlZA']);
+        $this->client(new FakeResponse(401, ['message' => 'authentication failed', 'webauthn' => ['challenge' => 'bmV3']]));
+
+        $this->plugin->startup(['task' => 'login', 'action' => 'login']);
+        $args = $this->login('key@example.org', '');
+        $this->plugin->modify_login_form(['hidden' => [], 'inputs' => [], 'buttons' => []]);
+
+        $this->assertSame('userli.webauthn_invalid', $args['error']);
+        $this->assertSame(['challenge' => 'bmV3'], $_SESSION['userli_2fa']['webauthn']);
+        $this->assertSame(401, $this->plugin->unauthenticated(['task' => 'login', 'http_code' => 401])['http_code']);
+    }
+
+    public function testSecurityKeyWithoutPendingLoginIsNotSent(): void
+    {
+        $_POST['_userli_webauthn'] = json_encode(['credentialId' => 'Y3JlZA']);
+        $client = $this->client();
+
+        $this->plugin->startup(['task' => 'login', 'action' => 'login']);
+        $args = $this->login('key@example.org', '');
+
+        $this->assertSame([], $client->calls);
+        $this->assertSame('userli.twofactor_expired', $args['error']);
+    }
+
     public function testCodeFormOffersAnotherAccount(): void
     {
         $this->client(new FakeResponse(401, ['message' => 'twofactor required']));
