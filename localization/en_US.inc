@@ -2,6 +2,7 @@
 
 $labels = [];
 $labels['twofactor_code'] = 'Two-factor code';
+$labels['use_security_key'] = 'Use security key';
 $labels['use_another_account'] = 'Use another account';
 
 $messages = [];
@@ -11,3 +12,6 @@ $messages['twofactor_expired'] = 'The login took too long. Please enter your pas
 $messages['too_many_attempts'] = 'Too many login attempts. Please try again later.';
 $messages['password_change_required'] = 'Please change your password in your account settings first.';
 $messages['login_unavailable'] = 'Login is currently not possible. Please try again later.';
+$messages['twofactor_required_webauthn'] = 'Use your security key, or enter the code from your authenticator app or a backup code.';
+$messages['webauthn_invalid'] = 'The security key could not be verified. Please try again.';
+$messages['webauthn_failed'] = 'The security key was not used. Please try again or enter a code.';

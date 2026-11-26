@@ -2,6 +2,7 @@
 
 $labels = [];
 $labels['twofactor_code'] = 'Zwei-Faktor-Code';
+$labels['use_security_key'] = 'Sicherheitsschlüssel verwenden';
 $labels['use_another_account'] = 'Anderes Konto verwenden';
 
 $messages = [];
@@ -11,3 +12,6 @@ $messages['twofactor_expired'] = 'Die Anmeldung hat zu lange gedauert. Bitte gib
 $messages['too_many_attempts'] = 'Zu viele Anmeldeversuche. Bitte versuche es später erneut.';
 $messages['password_change_required'] = 'Bitte ändere zuerst dein Passwort in deinen Kontoeinstellungen.';
 $messages['login_unavailable'] = 'Die Anmeldung ist gerade nicht möglich. Bitte versuche es später erneut.';
+$messages['twofactor_required_webauthn'] = 'Verwende deinen Sicherheitsschlüssel oder gib den Code aus deiner Authenticator-App oder einen Backup-Code ein.';
+$messages['webauthn_invalid'] = 'Der Sicherheitsschlüssel konnte nicht überprüft werden. Bitte versuche es erneut.';
+$messages['webauthn_failed'] = 'Der Sicherheitsschlüssel wurde nicht verwendet. Bitte versuche es erneut oder gib einen Code ein.';

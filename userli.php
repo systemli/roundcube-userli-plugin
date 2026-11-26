@@ -3,8 +3,8 @@
 /**
  * Userli
  *
- * Logs in with two-factor authentication through the userli API and
- * updates user identities from userli aliases at login
+ * Logs in with two-factor authentication (code or security key) through the
+ * userli API and updates user identities from userli aliases at login
  *
  * @version 0.2
  * @author systemli
@@ -87,6 +87,7 @@ class userli extends rcube_plugin
         $_SESSION["userli_2fa"] = $this->pending;
 
         $user = new html_hiddenfield(["name" => "_user", "value" => $this->pending["user"]]);
+        $webauthn = $this->pending["webauthn"] ?? null;
         $code = new html_inputfield([
             "name" => "_userli_code",
             "id" => "rcmloginuserlicode",
@@ -103,6 +104,22 @@ class userli extends rcube_plugin
                 "content" => $code->show(),
             ],
         ];
+        if (is_array($webauthn)) {
+            // userli.js passes the options to the browser and submits the assertion in _userli_webauthn
+            $this->include_script("userli.js");
+            $this->api->output->set_env("userli_webauthn", $webauthn);
+            $this->api->output->add_label("userli.webauthn_failed");
+            $assertion = new html_hiddenfield(["name" => "_userli_webauthn", "id" => "rcmloginuserliwebauthn"]);
+            $args["hidden"]["userli_webauthn"] = $assertion->show();
+            $args["buttons"]["userli_webauthn"] = [
+                "outterclass" => "formbuttons",
+                "content" => html::tag(
+                    "button",
+                    ["type" => "button", "id" => "rcmloginuserlikey", "class" => "button"],
+                    html::quote($this->gettext("use_security_key")),
+                ),
+            ];
+        }
         $args["buttons"]["userli_cancel"] = [
             "outterclass" => "formbuttons",
             "content" => html::a(["href" => "./?_task=login&_userli_cancel=1"], html::quote($this->gettext("use_another_account"))),
@@ -112,7 +129,7 @@ class userli extends rcube_plugin
     }
 
     /**
-     * Exchange the password (and 2FA code) for a webmail credential, which is used for IMAP and SMTP
+     * Exchange the password (and 2FA code or security key assertion) for a webmail credential, which is used for IMAP and SMTP
      */
     public function authenticate(array $args): array
     {
@@ -123,10 +140,11 @@ class userli extends rcube_plugin
 
         $rcmail = rcmail::get_instance();
         $code = trim((string) rcube_utils::get_input_string("_userli_code", rcube_utils::INPUT_POST));
+        $assertion = $this->get_webauthn_assertion();
         $pending = $this->pending;
         $this->pending = null;
 
-        if ($code !== "") {
+        if ($code !== "" || $assertion !== null) {
             if ($pending === null || $pending["user"] !== $args["user"]) {
                 $args["abort"] = true;
                 $args["error"] = "userli.twofactor_expired";
@@ -135,6 +153,10 @@ class userli extends rcube_plugin
             }
 
             $args["pass"] = (string) $rcmail->decrypt($pending["pass"]);
+            if ($assertion !== null) {
+                // The challenge userli issued for this login, not one from the browser
+                $assertion["challenge"] = (string) ($pending["webauthn"]["challenge"] ?? "");
+            }
         } else {
             $pending = null;
         }
@@ -142,11 +164,16 @@ class userli extends rcube_plugin
         // The aliases API needs the password, the credential is rejected there
         $this->pass = $args["pass"];
 
-        $response = $this->request_api("login", [
+        $data = [
             "email" => $args["user"],
             "password" => $args["pass"],
             "code" => $code,
-        ]);
+        ];
+        if ($assertion !== null) {
+            $data["webauthn"] = $assertion;
+        }
+
+        $response = $this->request_api("login", $data);
         $status = $response["status"] ?? null;
         $body = $response["body"] ?? [];
 
@@ -169,16 +196,18 @@ class userli extends rcube_plugin
         $message = $body["message"] ?? "";
 
         if ($status === 401 && $pending !== null) {
-            // Wrong code: let the user try again until the pending login expires
+            // Wrong code or key: let the user try again until the pending login expires, with a new challenge
+            $pending["webauthn"] = $this->get_webauthn_options($body);
             $this->pending = $pending;
-            $args["error"] = "userli.twofactor_invalid";
+            $args["error"] = $assertion !== null ? "userli.webauthn_invalid" : "userli.twofactor_invalid";
         } elseif ($status === 401 && $message === "twofactor required") {
             $this->pending = [
                 "user" => $args["user"],
                 "pass" => $rcmail->encrypt($args["pass"]),
                 "time" => time(),
+                "webauthn" => $this->get_webauthn_options($body),
             ];
-            $args["error"] = "userli.twofactor_required";
+            $args["error"] = $this->pending["webauthn"] !== null ? "userli.twofactor_required_webauthn" : "userli.twofactor_required";
             $this->twofactor_required = true;
         } elseif ($status === 429) {
             $args["error"] = "userli.too_many_attempts";
@@ -336,6 +365,38 @@ class userli extends rcube_plugin
                 "standard" => 0,
             ]);
         }
+    }
+
+    /**
+     * Options for navigator.credentials.get() that userli sends for users with security keys
+     */
+    private function get_webauthn_options(array $body): ?array
+    {
+        $options = $body["webauthn"] ?? null;
+
+        return is_array($options) && is_string($options["challenge"] ?? null) ? $options : null;
+    }
+
+    /**
+     * The assertion that userli.js submitted, base64url encoded, or null without one
+     */
+    private function get_webauthn_assertion(): ?array
+    {
+        $json = (string) rcube_utils::get_input_string("_userli_webauthn", rcube_utils::INPUT_POST);
+        if ($json === "") {
+            return null;
+        }
+
+        $data = json_decode($json, true);
+        $assertion = [];
+        foreach (["credentialId", "clientDataJSON", "authenticatorData", "signature", "userHandle"] as $key) {
+            if (is_array($data) && is_string($data[$key] ?? null) && $data[$key] !== "") {
+                $assertion[$key] = $data[$key];
+            }
+        }
+
+        // Incomplete assertions are sent anyway, userli rejects them
+        return $assertion;
     }
 
     /**
